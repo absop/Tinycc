@@ -459,7 +459,8 @@ ST_FUNC TokenSym *tok_alloc(const char *str, int len)
     for (int i = 0; i < len; i++)
         h = TOK_HASH_FUNC(h, ((unsigned char *)str)[i]);
 
-    return tok_alloc_with_hash(str, len, h); }
+    return tok_alloc_with_hash(str, len, h);
+}
 
 /* XXX: buffer overflow */
 /* XXX: float tokens */
@@ -1971,14 +1972,7 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf,
             /* escape */
             c = *p;
             switch (c) {
-                case '0':
-                case '1':
-                case '2':
-                case '3':
-                case '4':
-                case '5':
-                case '6':
-                case '7':
+                case '0' ... '7':
                     /* at most three octal digits */
                     n = c - '0';
                     p++;
@@ -2657,7 +2651,8 @@ parse_ident_fast:
             if (c != '\\') {
                 /* fast case : no stray found, so we have the full token
                    and we have already hashed it */
-                ts = tok_alloc_with_hash(p1, len, h); }
+                ts = tok_alloc_with_hash(p1, len, h);
+            }
             else {
                 /* slower case */
                 cstr_reset(&tokcstr);
@@ -3515,7 +3510,8 @@ ST_FUNC void tccpp_new(TCCState *s)
     for (const char *p, *q = tcc_keywords; * (p = q); q++) {
         hash = TOK_HASH_INIT;
         for (; *q; q++) hash = TOK_HASH_FUNC(hash, *q);
-        tok_alloc_with_hash(p, q - p, hash); }
+        tok_alloc_with_hash(p, q - p, hash);
+    }
 }
 
 ST_FUNC void tccpp_delete(TCCState *s)
