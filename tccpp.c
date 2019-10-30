@@ -1332,55 +1332,6 @@ ST_FUNC void free_defines(Sym *b)
     }
 }
 
-/* label lookup */
-ST_FUNC Sym *label_find(int v)
-{
-    v -= TOK_IDENT;
-    if ((unsigned)v >= (unsigned)(tok_ident - TOK_IDENT)) return NULL;
-    return table_ident[v]->sym_label;
-}
-
-ST_FUNC Sym *label_push(Sym **ptop, int v, int flags)
-{
-    Sym *s, **ps;
-    s = sym_push2(ptop, v, 0, 0);
-    s->r = flags;
-    ps = &table_ident[v - TOK_IDENT]->sym_label;
-    if (ptop == &global_label_stack) {
-        /* modify the top most local identifier, so that
-           sym_identifier will point to 's' when popped */
-        while (*ps != NULL) ps = &(*ps)->prev_tok;
-    }
-    s->prev_tok = *ps;
-    *ps = s;
-    return s;
-}
-
-/* pop labels until element last is reached. Look if any labels are
-   undefined. Define symbols if '&&label' was used. */
-ST_FUNC void label_pop(Sym **ptop, Sym *slast, int keep)
-{
-    Sym *s, *s1;
-    for (s = *ptop; s != slast; s = s1) {
-        s1 = s->prev;
-        if (s->r == LABEL_DECLARED)
-            tcc_warning("label '%s' declared but not used", get_tok_str(s->v, NULL));
-        else if (s->r == LABEL_FORWARD)
-            tcc_error("label '%s' used but not defined", get_tok_str(s->v, NULL));
-        else {
-            if (s->c) {
-                /* define corresponding symbol. A size of
-                   1 is put. */
-                put_extern_sym(s, cur_text_section, s->jnext, 1);
-            }
-        }
-        /* remove label */
-        table_ident[s->v - TOK_IDENT]->sym_label = s->prev_tok;
-        if (!keep) sym_free(s);
-    }
-    if (!keep) *ptop = slast;
-}
-
 /* fake the nth "#if defined test_..." for tcc -dt -run */
 static void maybe_run_test(TCCState *s)
 {
