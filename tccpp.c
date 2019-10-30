@@ -2492,28 +2492,28 @@ float_frac_parse:
     if (ch) tcc_error("invalid number\n");
 }
 
-#define PARSE2(tok1, c2, tok2)   \
-    PEEKC(c, p);                 \
-    if (c == c2) {               \
-        p++;                     \
-        tok = tok2;              \
-    } else {                     \
-        tok = tok1;              \
-    }                            \
+#define PARSE2(tok1, tok2)  \
+    PEEKC(c, p);            \
+    if (c == '=') {         \
+        p++;                \
+        tok = tok2;         \
+    } else {                \
+        tok = tok1;         \
+    }                       \
     break;
 
 #define PARSE3(c1, tok1, tok2)  \
-    PEEKC(c, p);                    \
-    if (c == c1) {                  \
-        p++;                        \
-        tok = tok1;                 \
-    }                               \
-    else if (c == '=') {            \
-        p++;                        \
-        tok = tok2;                 \
-    }                               \
-    else                            \
-        tok = c1;                   \
+    PEEKC(c, p);                \
+    if (c == c1) {              \
+        p++;                    \
+        tok = tok1;             \
+    }                           \
+    else if (c == '=') {        \
+        p++;                    \
+        tok = tok2;             \
+    }                           \
+    else                        \
+        tok = c1;               \
     break;
 
 #define PARSE4(c1, tok1, tok2, tok3, tok4)  \
@@ -2775,11 +2775,11 @@ str_const:
         case '|': PARSE3('|', TOK_LOR,  TOK_A_OR)
         case '&': PARSE3('&', TOK_LAND, TOK_A_AND)
 
-        case '!': PARSE2('!', '=', TOK_NE)
-        case '=': PARSE2('=', '=', TOK_EQ)
-        case '*': PARSE2('*', '=', TOK_A_MUL)
-        case '%': PARSE2('%', '=', TOK_A_MOD)
-        case '^': PARSE2('^', '=', TOK_A_XOR)
+        case '!': PARSE2('!', TOK_NE)
+        case '=': PARSE2('=', TOK_EQ)
+        case '*': PARSE2('*', TOK_A_MUL)
+        case '%': PARSE2('%', TOK_A_MOD)
+        case '^': PARSE2('^', TOK_A_XOR)
 
         case '-':
             PEEKC(c, p);
