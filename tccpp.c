@@ -438,7 +438,7 @@ static TokenSym *tok_alloc_new(TokenSym **phead, const char *str, int len)
     return ts;
 }
 
-TokenSym *tok_alloc_new_with_hash(const char *str, int len, unsigned int hash)
+static TokenSym *tok_alloc_with_hash(const char *str, int len, uint32_t hash)
 {
     TokenSym *ts, **phead;
     phead = &hash_ident[hash & (TOK_HASH_SIZE - 1)];
@@ -455,12 +455,11 @@ TokenSym *tok_alloc_new_with_hash(const char *str, int len, unsigned int hash)
 /* find a token and add it if not found */
 ST_FUNC TokenSym *tok_alloc(const char *str, int len)
 {
-    unsigned int h = TOK_HASH_INIT;
+    uint32_t h = TOK_HASH_INIT;
     for (int i = 0; i < len; i++)
         h = TOK_HASH_FUNC(h, ((unsigned char *)str)[i]);
 
-    return tok_alloc_new_with_hash(str, len, h);
-}
+    return tok_alloc_with_hash(str, len, h); }
 
 /* XXX: buffer overflow */
 /* XXX: float tokens */
@@ -1526,7 +1525,7 @@ static CachedInclude *search_cached_include(TCCState *s1, const char *filename,
         int add)
 {
     const unsigned char *s;
-    unsigned int h;
+    uint32_t h;
     CachedInclude *e;
     int i;
 
@@ -2200,10 +2199,10 @@ static void parse_string(const char *s, int len)
 #define BN_SIZE 2
 
 /* bn = (bn << shift) | or_val */
-static void bn_lshift(unsigned int *bn, int shift, int or_val)
+static void bn_lshift(uint32_t *bn, int shift, int or_val)
 {
     int i;
-    unsigned int v;
+    uint32_t v;
     for (i = 0; i < BN_SIZE; i++) {
         v = bn[i];
         bn[i] = (v << shift) | or_val;
@@ -2211,7 +2210,7 @@ static void bn_lshift(unsigned int *bn, int shift, int or_val)
     }
 }
 
-static void bn_zero(unsigned int *bn)
+static void bn_zero(uint32_t *bn)
 {
     int i;
     for (i = 0; i < BN_SIZE; i++) bn[i] = 0;
@@ -2223,7 +2222,7 @@ static void parse_number(const char *p)
 {
     int b, t, shift, frac_bits, s, exp_val, ch;
     char *q;
-    unsigned int bn[BN_SIZE];
+    uint32_t bn[BN_SIZE];
     double d;
 
     /* number */
@@ -2283,14 +2282,10 @@ num_too_long:
             q = token_buf;
             while (1) {
                 t = *q++;
-                if (t == '\0')
-                    break;
-                else if (t >= 'a')
-                    t = t - 'a' + 10;
-                else if (t >= 'A')
-                    t = t - 'A' + 10;
-                else
-                    t = t - '0';
+                if (t == '\0') break;
+                else if (t >= 'a') t = t - 'a' + 10;
+                else if (t >= 'A') t = t - 'A' + 10;
+                else t = t - '0';
                 bn_lshift(bn, shift, t);
             }
             frac_bits = 0;
@@ -2541,7 +2536,7 @@ static inline void next_nomacro1(void)
     int t, c, is_long, len;
     TokenSym *ts;
     uint8_t *p, *p1;
-    unsigned int h;
+    uint32_t h;
 
     p = file->buf_ptr;
 redo_no_start:
@@ -2662,8 +2657,7 @@ parse_ident_fast:
             if (c != '\\') {
                 /* fast case : no stray found, so we have the full token
                    and we have already hashed it */
-                ts = tok_alloc_new_with_hash(p1, len, h);
-            }
+                ts = tok_alloc_with_hash(p1, len, h); }
             else {
                 /* slower case */
                 cstr_reset(&tokcstr);
@@ -3492,7 +3486,7 @@ ST_FUNC void preprocess_end(TCCState *s1)
 
 ST_FUNC void tccpp_new(TCCState *s)
 {
-    unsigned int hash;
+    uint32_t hash;
 
     /* might be used in error() before preprocess_start() */
     s->include_stack_ptr = s->include_stack;
@@ -3521,8 +3515,7 @@ ST_FUNC void tccpp_new(TCCState *s)
     for (const char *p, *q = tcc_keywords; * (p = q); q++) {
         hash = TOK_HASH_INIT;
         for (; *q; q++) hash = TOK_HASH_FUNC(hash, *q);
-        tok_alloc_new_with_hash(p, q - p, hash);
-    }
+        tok_alloc_with_hash(p, q - p, hash); }
 }
 
 ST_FUNC void tccpp_delete(TCCState *s)
