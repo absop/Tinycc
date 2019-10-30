@@ -405,34 +405,48 @@ static void add_char(CString *cstr, int c)
 
 /* ------------------------------------------------------------------------- */
 /* allocate a new token */
-static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
+
+static void table_ident_push(TokenSym *ts)
 {
-    TokenSym *ts, **ptable;
-    int i;
-
+    int i = tok_ident - TOK_IDENT;
     if (tok_ident >= SYM_FIRST_ANOM) tcc_error("memory full (symbols)");
-
     /* expand token table if needed */
-    i = tok_ident - TOK_IDENT;
     if ((i % TOK_ALLOC_INCR) == 0) {
-        ptable =
-            tcc_realloc(table_ident, (i + TOK_ALLOC_INCR) * sizeof(TokenSym *));
-        table_ident = ptable;
+        int nbyte = (i + TOK_ALLOC_INCR) * sizeof(TokenSym *);
+        table_ident = tcc_realloc(table_ident, nbyte);
+        memset(table_ident + i, 0, TOK_ALLOC_INCR * sizeof(TokenSym *));
     }
-
-    ts = tal_realloc(toksym_alloc, 0, sizeof(TokenSym) + len);
     table_ident[i] = ts;
     ts->tok = tok_ident++;
+}
+
+static TokenSym *tok_alloc_new(TokenSym **phead, const char *str, int len)
+{
+    TokenSym *ts;
+    ts = tal_realloc(toksym_alloc, 0, sizeof(TokenSym) + len);
     ts->sym_define = NULL;
     ts->sym_label = NULL;
     ts->sym_struct = NULL;
     ts->sym_identifier = NULL;
-    ts->len = len;
-    ts->hash_next = NULL;
     memcpy(ts->str, str, len);
     ts->str[len] = '\0';
-    *pts = ts;
+    ts->len = len;
+    ts->hash_next = *phead;
+    *phead = ts;
+    table_ident_push(ts);
+
     return ts;
+}
+
+TokenSym *tok_alloc_new_with_hash(const char *str, int len, unsigned int hash)
+{
+    TokenSym *ts, **phead;
+    phead = &hash_ident[hash & (TOK_HASH_SIZE - 1)];
+    for (ts = *phead; ts; ts = ts->hash_next) {
+        if (ts->len == len && !memcmp(ts->str, str, len))
+            return ts;
+    }
+    return tok_alloc_new(phead, str, len);
 }
 
 #define TOK_HASH_INIT 1
@@ -441,22 +455,11 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
 /* find a token and add it if not found */
 ST_FUNC TokenSym *tok_alloc(const char *str, int len)
 {
-    TokenSym *ts, **pts;
-    int i;
-    unsigned int h;
+    unsigned int h = TOK_HASH_INIT;
+    for (int i = 0; i < len; i++)
+        h = TOK_HASH_FUNC(h, ((unsigned char *)str)[i]);
 
-    h = TOK_HASH_INIT;
-    for (i = 0; i < len; i++) h = TOK_HASH_FUNC(h, ((unsigned char *)str)[i]);
-    h &= (TOK_HASH_SIZE - 1);
-
-    pts = &hash_ident[h];
-    for (;;) {
-        ts = *pts;
-        if (!ts) break;
-        if (ts->len == len && !memcmp(ts->str, str, len)) return ts;
-        pts = &(ts->hash_next);
-    }
-    return tok_alloc_new(pts, str, len);
+    return tok_alloc_new_with_hash(str, len, h);
 }
 
 /* XXX: buffer overflow */
@@ -2625,20 +2628,9 @@ parse_ident_fast:
                 h = TOK_HASH_FUNC(h, c);
             len = p - p1;
             if (c != '\\') {
-                TokenSym **pts;
-
                 /* fast case : no stray found, so we have the full token
                    and we have already hashed it */
-                h &= (TOK_HASH_SIZE - 1);
-                pts = &hash_ident[h];
-                for (;;) {
-                    ts = *pts;
-                    if (!ts) break;
-                    if (ts->len == len && !memcmp(ts->str, p1, len)) goto token_found;
-                    pts = &(ts->hash_next);
-                }
-                ts = tok_alloc_new(pts, (char *)p1, len);
-token_found:;
+                ts = tok_alloc_new_with_hash(p1, len, h);
             }
             else {
                 /* slower case */
@@ -3540,19 +3532,19 @@ ST_FUNC void preprocess_end(TCCState *s1)
 
 ST_FUNC void tccpp_new(TCCState *s)
 {
-    int i, c;
-    const char *p, *r;
+    unsigned int hash;
 
     /* might be used in error() before preprocess_start() */
     s->include_stack_ptr = s->include_stack;
     s->ppfp = stdout;
 
     /* init isid table */
-    for (i = CH_EOF; i < 128; i++)
-        set_idnum(i,
-                  is_space(i) ? IS_SPC : isid(i) ? IS_ID : isnum(i) ? IS_NUM : 0);
+    for (int i = CH_EOF; i < 128; i++)
+        set_idnum(i, is_space(i) ? IS_SPC :
+                  isid(i) ? IS_ID : isnum(i) ? IS_NUM : 0);
 
-    for (i = 128; i < 256; i++) set_idnum(i, IS_ID);
+    for (int i = 128; i < 256; i++)
+        set_idnum(i, IS_ID);
 
     /* init allocators */
     tal_new(&toksym_alloc, TOKSYM_TAL_LIMIT, TOKSYM_TAL_SIZE);
@@ -3566,15 +3558,10 @@ ST_FUNC void tccpp_new(TCCState *s)
     tok_str_realloc(&tokstr_buf, TOKSTR_MAX_SIZE);
 
     tok_ident = TOK_IDENT;
-    p = tcc_keywords;
-    while (*p) {
-        r = p;
-        for (;;) {
-            c = *r++;
-            if (c == '\0') break;
-        }
-        tok_alloc(p, r - p - 1);
-        p = r;
+    for (const char *p, *q = tcc_keywords; * (p = q); q++) {
+        hash = TOK_HASH_INIT;
+        for (; *q; q++) hash = TOK_HASH_FUNC(hash, *q);
+        tok_alloc_new_with_hash(p, q - p, hash);
     }
 }
 
