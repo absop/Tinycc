@@ -2492,15 +2492,47 @@ float_frac_parse:
     if (ch) tcc_error("invalid number\n");
 }
 
-#define PARSE2(c1, tok1, c2, tok2) \
-    case c1:                         \
-    PEEKC(c, p);                   \
-    if (c == c2) {                 \
-        p++;                         \
-        tok = tok2;                  \
-    } else {                       \
-        tok = tok1;                  \
-    }                              \
+#define PARSE2(tok1, c2, tok2)   \
+    PEEKC(c, p);                 \
+    if (c == c2) {               \
+        p++;                     \
+        tok = tok2;              \
+    } else {                     \
+        tok = tok1;              \
+    }                            \
+    break;
+
+#define PARSE3(c1, tok1, tok2)  \
+    PEEKC(c, p);                    \
+    if (c == c1) {                  \
+        p++;                        \
+        tok = tok1;                 \
+    }                               \
+    else if (c == '=') {            \
+        p++;                        \
+        tok = tok2;                 \
+    }                               \
+    else                            \
+        tok = c1;                   \
+    break;
+
+#define PARSE4(c1, tok1, tok2, tok3, tok4)  \
+    PEEKC(c, p);                            \
+    if (c == '=') {                         \
+        p++;                                \
+        tok = tok1;                         \
+    }                                       \
+    else if (c == c1) {                     \
+        PEEKC(c, p);                        \
+        if (c == '=') {                     \
+            p++;                            \
+            tok = tok2;                     \
+        }                                   \
+        else                                \
+            tok = tok3;                     \
+    }                                       \
+    else                                    \
+        tok = tok4;                         \
     break;
 
 /* return next token without macro substitution */
@@ -2736,84 +2768,18 @@ str_const:
             tok = TOK_PPSTR;
             break;
 
-        case '<':
-            PEEKC(c, p);
-            if (c == '=') {
-                p++;
-                tok = TOK_LE;
-            }
-            else if (c == '<') {
-                PEEKC(c, p);
-                if (c == '=') {
-                    p++;
-                    tok = TOK_A_SHL;
-                }
-                else
-                    tok = TOK_SHL;
-            }
-            else
-                tok = TOK_LT;
-            break;
-        case '>':
-            PEEKC(c, p);
-            if (c == '=') {
-                p++;
-                tok = TOK_GE;
-            }
-            else if (c == '>') {
-                PEEKC(c, p);
-                if (c == '=') {
-                    p++;
-                    tok = TOK_A_SAR;
-                }
-                else
-                    tok = TOK_SAR;
-            }
-            else
-                tok = TOK_GT;
-            break;
+        case '<': PARSE4('<', TOK_LE, TOK_A_SHL, TOK_SHL, TOK_LT)
+        case '>': PARSE4('>', TOK_GE, TOK_A_SAR, TOK_SAR, TOK_GT)
 
-        case '&':
-            PEEKC(c, p);
-            if (c == '&') {
-                p++;
-                tok = TOK_LAND;
-            }
-            else if (c == '=') {
-                p++;
-                tok = TOK_A_AND;
-            }
-            else
-                tok = '&';
-            break;
+        case '+': PARSE3('+', TOK_INC,  TOK_A_ADD)
+        case '|': PARSE3('|', TOK_LOR,  TOK_A_OR)
+        case '&': PARSE3('&', TOK_LAND, TOK_A_AND)
 
-        case '|':
-            PEEKC(c, p);
-            if (c == '|') {
-                p++;
-                tok = TOK_LOR;
-            }
-            else if (c == '=') {
-                p++;
-                tok = TOK_A_OR;
-            }
-            else
-                tok = '|';
-            break;
-
-        case '+':
-            PEEKC(c, p);
-            if (c == '+') {
-                p++;
-                tok = TOK_INC;
-            }
-            else if (c == '=') {
-                p++;
-                tok = TOK_A_ADD;
-            }
-            else
-                tok = '+';
-            break;
+        case '!': PARSE2('!', '=', TOK_NE)
+        case '=': PARSE2('=', '=', TOK_EQ)
+        case '*': PARSE2('*', '=', TOK_A_MUL)
+        case '%': PARSE2('%', '=', TOK_A_MOD)
+        case '^': PARSE2('^', '=', TOK_A_XOR)
 
         case '-':
             PEEKC(c, p);
@@ -2832,12 +2798,6 @@ str_const:
             else
                 tok = '-';
             break;
-
-            PARSE2('!', '!', '=', TOK_NE)
-            PARSE2('=', '=', '=', TOK_EQ)
-            PARSE2('*', '*', '=', TOK_A_MUL)
-            PARSE2('%', '%', '=', TOK_A_MOD)
-            PARSE2('^', '^', '=', TOK_A_XOR)
 
         /* comments or operator */
         case '/':
