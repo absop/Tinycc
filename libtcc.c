@@ -433,11 +433,10 @@ ST_FUNC void dynarray_reset(void *pp, int *n)
 static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *in)
 {
     const char *p;
+    int c;
+    CString str;
+    cstr_new(&str);
     do {
-        int c;
-        CString str;
-
-        cstr_new(&str);
         for (p = in; c = *p, c != '\0' && c != PATHSEP[0]; ++p) {
             if (c == '{' && p[1] && p[2] == '}') {
                 c = p[1], p += 2;
