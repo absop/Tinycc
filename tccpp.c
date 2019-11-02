@@ -2200,15 +2200,7 @@ static void parse_number(const char *p)
     }
     /* parse all digits. cannot check octal numbers at this stage
        because of floating point constants */
-    while (1) {
-        if (ch >= 'a' && ch <= 'f')
-            t = ch - 'a' + 10;
-        else if (ch >= 'A' && ch <= 'F')
-            t = ch - 'A' + 10;
-        else if (isnum(ch))
-            t = ch - '0';
-        else
-            break;
+    while ((t = vxdigit(ch)) != -1) {
         if (t >= b) break;
         if (q >= token_buf + STRING_MAX_SIZE) {
 num_too_long:
@@ -2232,20 +2224,14 @@ num_too_long:
                 shift = 1;
             bn_zero(bn);
             q = token_buf;
-            while (1) {
-                t = *q++;
-                if (t == '\0') break;
-                else if (t >= 'a') t = t - 'a' + 10;
-                else if (t >= 'A') t = t - 'A' + 10;
-                else t = t - '0';
+            while ((t = vxdigit(*q++)) != -1) {
                 bn_lshift(bn, shift, t);
             }
             frac_bits = 0;
             if (ch == '.') {
                 ch = *p++;
                 while ((t = vxdigit(ch)) != -1) {
-                    if (t >= b)
-                        tcc_error("invalid digit");
+                    if (t >= b) tcc_error("invalid digit");
                     bn_lshift(bn, shift, t);
                     frac_bits += shift;
                     ch = *p++;
@@ -2298,28 +2284,33 @@ num_too_long:
         else {
             /* decimal floats */
             if (ch == '.') {
-                if (q >= token_buf + STRING_MAX_SIZE) goto num_too_long;
+                if (q >= token_buf + STRING_MAX_SIZE)
+                    goto num_too_long;
                 *q++ = ch;
                 ch = *p++;
 float_frac_parse:
                 while (ch >= '0' && ch <= '9') {
-                    if (q >= token_buf + STRING_MAX_SIZE) goto num_too_long;
+                    if (q >= token_buf + STRING_MAX_SIZE)
+                        goto num_too_long;
                     *q++ = ch;
                     ch = *p++;
                 }
             }
             if (ch == 'e' || ch == 'E') {
-                if (q >= token_buf + STRING_MAX_SIZE) goto num_too_long;
+                if (q >= token_buf + STRING_MAX_SIZE)
+                    goto num_too_long;
                 *q++ = ch;
                 ch = *p++;
                 if (ch == '-' || ch == '+') {
-                    if (q >= token_buf + STRING_MAX_SIZE) goto num_too_long;
+                    if (q >= token_buf + STRING_MAX_SIZE)
+                        goto num_too_long;
                     *q++ = ch;
                     ch = *p++;
                 }
                 if (ch < '0' || ch > '9') expect("exponent digits");
                 while (ch >= '0' && ch <= '9') {
-                    if (q >= token_buf + STRING_MAX_SIZE) goto num_too_long;
+                    if (q >= token_buf + STRING_MAX_SIZE)
+                        goto num_too_long;
                     *q++ = ch;
                     ch = *p++;
                 }
@@ -2361,17 +2352,8 @@ float_frac_parse:
             q++;
         }
         n = 0;
-        while (1) {
-            t = *q++;
+        while ((t = vxdigit(*q++)) != -1) {
             /* no need for checks except for base 10 / 8 errors */
-            if (t == '\0')
-                break;
-            else if (t >= 'a')
-                t = t - 'a' + 10;
-            else if (t >= 'A')
-                t = t - 'A' + 10;
-            else
-                t = t - '0';
             if (t >= b) tcc_error("invalid digit");
             n1 = n;
             n = n * b + t;
