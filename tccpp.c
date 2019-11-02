@@ -343,8 +343,7 @@ static void cstr_realloc(CString *cstr, int new_size)
 /* add a byte */
 ST_INLN void cstr_ccat(CString *cstr, int ch)
 {
-    int size;
-    size = cstr->size + 1;
+    int size = cstr->size + 1;
     if (size > cstr->size_allocated) cstr_realloc(cstr, size);
     ((unsigned char *)cstr->data)[size - 1] = ch;
     cstr->size = size;
@@ -363,10 +362,9 @@ ST_FUNC void cstr_cat(CString *cstr, const char *str, int len)
 /* add a wide char */
 ST_FUNC void cstr_wccat(CString *cstr, int ch)
 {
-    int size;
-    size = cstr->size + sizeof(nwchar_t);
+    int size = cstr->size + sizeof(nwchar_t);
     if (size > cstr->size_allocated) cstr_realloc(cstr, size);
-    *(nwchar_t *)(((unsigned char *)cstr->data) + size - sizeof(nwchar_t)) = ch;
+    *(nwchar_t *)(((unsigned char *)cstr->data) + cstr->size) = ch;
     cstr->size = size;
 }
 
@@ -385,12 +383,13 @@ ST_FUNC void cstr_reset(CString *cstr) { cstr->size = 0; }
 /* XXX: unicode ? */
 static void add_char(CString *cstr, int c)
 {
-    if (c == '\'' || c == '\"' || c == '\\') {
-        /* XXX: could be more precise if char or string */
-        cstr_ccat(cstr, '\\');
-    }
-    if (c >= 32 && c <= 126)
+    if (c >= 32 && c <= 126) {
+        if (c == '\'' || c == '\"' || c == '\\') {
+            /* XXX: could be more precise if char or string */
+            cstr_ccat(cstr, '\\');
+        }
         cstr_ccat(cstr, c);
+    }
     else {
         cstr_ccat(cstr, '\\');
         if (c == '\n')
