@@ -2160,6 +2160,14 @@ static void bn_zero(uint32_t *bn)
     for (i = 0; i < BN_SIZE; i++) bn[i] = 0;
 }
 
+static inline int vxdigit(int c)
+{
+    return ('0' <= c && c <= '9') ? c - '0' :
+           ('A' <= c && c <= 'F') ? c - 'A' + 10 :
+           ('a' <= c && c <= 'f') ? c - 'a' + 10 :
+           -1;
+}
+
 /* parse number in null terminated string 'p' and return it in the
    current token */
 static void parse_number(const char *p)
@@ -2235,17 +2243,9 @@ num_too_long:
             frac_bits = 0;
             if (ch == '.') {
                 ch = *p++;
-                while (1) {
-                    t = ch;
-                    if (t >= 'a' && t <= 'f')
-                        t = t - 'a' + 10;
-                    else if (t >= 'A' && t <= 'F')
-                        t = t - 'A' + 10;
-                    else if (t >= '0' && t <= '9')
-                        t = t - '0';
-                    else
-                        break;
-                    if (t >= b) tcc_error("invalid digit");
+                while ((t = vxdigit(ch)) != -1) {
+                    if (t >= b)
+                        tcc_error("invalid digit");
                     bn_lshift(bn, shift, t);
                     frac_bits += shift;
                     ch = *p++;
