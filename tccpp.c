@@ -1918,9 +1918,8 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf,
         c = *p;
         if (c == '\0') break;
         if (c == '\\') {
-            p++;
+            c = *++p;
             /* escape */
-            c = *p;
             switch (c) {
                 case '0' ... '7':
                     /* at most three octal digits */
@@ -1958,27 +1957,13 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf,
                     }
                     c = n;
                     goto add_char_nonext;
-                case 'a':
-                    c = '\a';
-                    break;
-                case 'b':
-                    c = '\b';
-                    break;
-                case 'f':
-                    c = '\f';
-                    break;
-                case 'n':
-                    c = '\n';
-                    break;
-                case 'r':
-                    c = '\r';
-                    break;
-                case 't':
-                    c = '\t';
-                    break;
-                case 'v':
-                    c = '\v';
-                    break;
+                case 'a': c = '\a'; break;
+                case 'b': c = '\b'; break;
+                case 'f': c = '\f'; break;
+                case 'n': c = '\n'; break;
+                case 'r': c = '\r'; break;
+                case 't': c = '\t'; break;
+                case 'v': c = '\v'; break;
                 case 'e':
                     if (!gnu_ext) goto invalid_escape;
                     c = 27;
