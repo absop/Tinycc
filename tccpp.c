@@ -3539,13 +3539,11 @@ static void pp_debug_builtins(TCCState *s1)
 /* Add a space between tokens a and b to avoid unwanted textual pasting */
 static int pp_need_space(int a, int b)
 {
-    return 'E' == a
-           ? '+' == b || '-' == b
-           : '+' == a ? TOK_INC == b || '+' == b
-           : '-' == a ? TOK_DEC == b || '-' == b
-           : a >= TOK_IDENT
-           ? b >= TOK_IDENT
-           : a == TOK_PPNUM ? b >= TOK_IDENT : 0;
+    return 'E' == a ? '+' == b || '-' == b :
+           '+' == a ? TOK_INC == b || '+' == b :
+           '-' == a ? TOK_DEC == b || '-' == b :
+           a >= TOK_IDENT ? b >= TOK_IDENT :
+           a == TOK_PPNUM ? b >= TOK_IDENT : 0;
 }
 
 /* maybe hex like 0x1e */
