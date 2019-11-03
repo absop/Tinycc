@@ -1187,7 +1187,7 @@ ST_FUNC void tok_str_add_tok(TokenString *s)
     CValue cval;
 
     /* save line number info */
-    if (file->line_num != s->last_line_num) {
+    if (s->last_line_num != file->line_num) {
         s->last_line_num = file->line_num;
         cval.i = s->last_line_num;
         tok_str_add2(s, TOK_LINENUM, &cval);
@@ -1199,9 +1199,8 @@ ST_FUNC void tok_str_add_tok(TokenString *s)
 static inline void TOK_GET(int *t, const int **pp, CValue *cv)
 {
     const int *p = *pp;
-    int n, *tab;
+    int *tab = cv->tab;
 
-    tab = cv->tab;
     switch (*t = *p++) {
 #if LONG_SIZE == 4
         case TOK_CLONG:
@@ -1229,6 +1228,16 @@ static inline void TOK_GET(int *t, const int **pp, CValue *cv)
             cv->str.data = p;
             p += (cv->str.size + sizeof(int) - 1) / sizeof(int);
             break;
+        case TOK_CLDOUBLE:
+#if LDOUBLE_SIZE == 16
+            *tab++ = *p++;
+            *tab++ = *p++;
+#elif LDOUBLE_SIZE == 12
+            *tab++ = *p++;
+#elif LDOUBLE_SIZE == 8
+#else
+#error add long double size support
+#endif
         case TOK_CDOUBLE:
         case TOK_CLLONG:
         case TOK_CULLONG:
@@ -1236,22 +1245,8 @@ static inline void TOK_GET(int *t, const int **pp, CValue *cv)
         case TOK_CLONG:
         case TOK_CULONG:
 #endif
-            n = 2;
-            goto copy;
-        case TOK_CLDOUBLE:
-#if LDOUBLE_SIZE == 16
-            n = 4;
-#elif LDOUBLE_SIZE == 12
-            n = 3;
-#elif LDOUBLE_SIZE == 8
-            n = 2;
-#else
-#error add long double size support
-#endif
-copy:
-            do
-                *tab++ = *p++;
-            while (--n);
+            *tab++ = *p++;
+            *tab++ = *p++;
             break;
         default:
             break;
@@ -2209,9 +2204,8 @@ num_too_long:
                 shift = 1;
             bn_zero(bn);
             q = token_buf;
-            while ((t = vxdigit(*q++)) != -1) {
+            while ((t = vxdigit(*q++)) != -1)
                 bn_lshift(bn, shift, t);
-            }
             frac_bits = 0;
             if (ch == '.') {
                 ch = *p++;
