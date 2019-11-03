@@ -1114,6 +1114,7 @@ ST_FUNC void end_macro(void)
 static void tok_str_add2(TokenString *s, int t, CValue *cv)
 {
     int len, *str;
+    int *tab = cv->tab;
 
     len = s->lastlen = s->len;
     str = s->str;
@@ -1133,20 +1134,32 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
         case TOK_CLONG:
         case TOK_CULONG:
 #endif
-            str[len++] = cv->tab[0];
+            str[len++] = tab[0];
             break;
+
         case TOK_PPNUM:
         case TOK_PPSTR:
         case TOK_STR:
         case TOK_LSTR: {
             /* Insert the string into the int array. */
-            size_t nb_words = 1 + (cv->str.size + sizeof(int) - 1) / sizeof(int);
-            if (len + nb_words >= s->allocated_len)
-                str = tok_str_realloc(s, len + nb_words + 1);
-            str[len] = cv->str.size;
-            memcpy(&str[len + 1], cv->str.data, cv->str.size);
-            len += nb_words;
+            int nb_byte = cv->str.size;
+            int nb_int = len + 1 + (nb_byte + sizeof(int) - 1) / sizeof(int);
+            if (nb_int >= s->allocated_len)
+                str = tok_str_realloc(s, nb_int + 1);
+            str[len] = nb_byte;
+            memcpy(&str[len + 1], cv->str.data, nb_byte);
+            len = nb_int;
         } break;
+
+        case TOK_CLDOUBLE:
+#if LDOUBLE_SIZE == 16
+            str[len++] = *tab++;
+            str[len++] = *tab++;
+#elif LDOUBLE_SIZE == 12
+            str[len++] = *tab++;
+#elif LDOUBLE_SIZE != 8
+#error add long double size support
+#endif
         case TOK_CDOUBLE:
         case TOK_CLLONG:
         case TOK_CULLONG:
@@ -1154,27 +1167,10 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
         case TOK_CLONG:
         case TOK_CULONG:
 #endif
-#if LDOUBLE_SIZE == 8
-        case TOK_CLDOUBLE:
-#endif
-            str[len++] = cv->tab[0];
-            str[len++] = cv->tab[1];
+            str[len++] = *tab++;
+            str[len++] = *tab++;
             break;
-#if LDOUBLE_SIZE == 12
-        case TOK_CLDOUBLE:
-            str[len++] = cv->tab[0];
-            str[len++] = cv->tab[1];
-            str[len++] = cv->tab[2];
-#elif LDOUBLE_SIZE == 16
-        case TOK_CLDOUBLE:
-            str[len++] = cv->tab[0];
-            str[len++] = cv->tab[1];
-            str[len++] = cv->tab[2];
-            str[len++] = cv->tab[3];
-#elif LDOUBLE_SIZE != 8
-#error add long double size support
-#endif
-            break;
+
         default:
             break;
     }
@@ -1211,15 +1207,18 @@ static inline void TOK_GET(int *t, const int **pp, CValue *cv)
         case TOK_LINENUM:
             cv->i = *p++;
             break;
+
 #if LONG_SIZE == 4
         case TOK_CULONG:
 #endif
         case TOK_CUINT:
             cv->i = (unsigned) * p++;
             break;
+
         case TOK_CFLOAT:
             tab[0] = *p++;
             break;
+
         case TOK_STR:
         case TOK_LSTR:
         case TOK_PPNUM:
@@ -1228,14 +1227,14 @@ static inline void TOK_GET(int *t, const int **pp, CValue *cv)
             cv->str.data = p;
             p += (cv->str.size + sizeof(int) - 1) / sizeof(int);
             break;
+
         case TOK_CLDOUBLE:
 #if LDOUBLE_SIZE == 16
             *tab++ = *p++;
             *tab++ = *p++;
 #elif LDOUBLE_SIZE == 12
             *tab++ = *p++;
-#elif LDOUBLE_SIZE == 8
-#else
+#elif LDOUBLE_SIZE != 8
 #error add long double size support
 #endif
         case TOK_CDOUBLE:
@@ -1248,6 +1247,7 @@ static inline void TOK_GET(int *t, const int **pp, CValue *cv)
             *tab++ = *p++;
             *tab++ = *p++;
             break;
+
         default:
             break;
     }
@@ -1262,13 +1262,14 @@ static int macro_is_equal(const int *a, const int *b)
     if (!a || !b) return 1;
 
     while (*a && *b) {
-        /* first time preallocate macro_equal_buf, next time only reset position to
-         * start */
+        /* first time preallocate macro_equal_buf,
+         * next time only reset position to start */
         cstr_reset(&macro_equal_buf);
         TOK_GET(&t, &a, &cv);
         cstr_cat(&macro_equal_buf, get_tok_str(t, &cv), 0);
         TOK_GET(&t, &b, &cv);
-        if (strcmp(macro_equal_buf.data, get_tok_str(t, &cv))) return 0;
+        if (strcmp(macro_equal_buf.data, get_tok_str(t, &cv)))
+            return 0;
     }
     return !(*a || *b);
 }
