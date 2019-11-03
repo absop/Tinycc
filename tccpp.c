@@ -179,39 +179,38 @@ static void tal_delete(TinyAlloc *al)
 {
     TinyAlloc *next;
 
-tail_call:
-    if (!al) return;
+    for (; al; ) {
 #ifdef TAL_INFO
-    fprintf(stderr,
-            "limit=%5d, size=%5g MB, nb_peak=%6d, nb_total=%8d, nb_missed=%6d, "
-            "usage=%5.1f%%\n",
-            al->limit, al->size / 1024.0 / 1024.0, al->nb_peak, al->nb_total,
-            al->nb_missed, (al->peak_p - al->buffer) * 100.0 / al->size);
+        fprintf(stderr, "limit=%5d, size=%5g MB, "
+                "nb_peak=%6d, nb_total=%8d, nb_missed=%6d, usage=%5.1f%%\n",
+                al->limit, al->size / 1024.0 / 1024.0,
+                al->nb_peak, al->nb_total, al->nb_missed,
+                (al->peak_p - al->buffer) * 100.0 / al->size);
 #endif
 #ifdef TAL_DEBUG
-    if (al->nb_allocs > 0) {
-        uint8_t *p;
-        fprintf(stderr, "TAL_DEBUG: memory leak %d chunk(s) (limit= %d)\n",
-                al->nb_allocs, al->limit);
-        p = al->buffer;
-        while (p < al->p) {
-            tal_header_t *header = (tal_header_t *)p;
-            if (header->line_num > 0) {
-                fprintf(stderr, "%s:%d: chunk of %d bytes leaked\n", header->file_name,
-                        header->line_num, header->size);
+        if (al->nb_allocs > 0) {
+            uint8_t *p;
+            fprintf(stderr, "TAL_DEBUG: memory leak %d chunk(s) (limit= %d)\n",
+                    al->nb_allocs, al->limit);
+            p = al->buffer;
+            while (p < al->p) {
+                tal_header_t *header = (tal_header_t *)p;
+                if (header->line_num > 0) {
+                    fprintf(stderr, "%s:%d: chunk of %d bytes leaked\n",
+                            header->file_name, header->line_num, header->size);
+                }
+                p += header->size + sizeof(tal_header_t);
             }
-            p += header->size + sizeof(tal_header_t);
-        }
 #if MEM_DEBUG - 0 == 2
-        exit(2);
+            exit(2);
 #endif
+        }
+#endif /* TAL_DEBUG */
+        next = al->next;
+        tcc_free(al->buffer);
+        tcc_free(al);
+        al = next;
     }
-#endif
-    next = al->next;
-    tcc_free(al->buffer);
-    tcc_free(al);
-    al = next;
-    goto tail_call;
 }
 
 static void tal_free_impl(TinyAlloc *al, void *p TAL_DEBUG_PARAMS)
@@ -222,8 +221,8 @@ tail_call:
 #ifdef TAL_DEBUG
         tal_header_t *header = (((tal_header_t *)p) - 1);
         if (header->line_num < 0) {
-            fprintf(stderr, "%s:%d: TAL_DEBUG: double frees chunk from\n", file,
-                    line);
+            fprintf(stderr, "%s:%d: TAL_DEBUG: double frees chunk from\n",
+                    file, line);
             fprintf(stderr, "%s:%d: %d bytes\n", header->file_name,
                     (int) - header->line_num, (int)header->size);
         }
@@ -466,6 +465,7 @@ ST_FUNC TokenSym *tok_alloc(const char *str, int len)
 ST_FUNC const char *get_tok_str(int v, CValue *cv)
 {
     char *p;
+    const char *cp;
     int i, len;
 
     cstr_reset(&cstr_buf);
@@ -514,34 +514,20 @@ ST_FUNC const char *get_tok_str(int v, CValue *cv)
             cstr_ccat(&cstr_buf, '\0');
             break;
 
-        case TOK_CFLOAT:
-            cstr_cat(&cstr_buf, "<float>", 0);
-            break;
-        case TOK_CDOUBLE:
-            cstr_cat(&cstr_buf, "<double>", 0);
-            break;
-        case TOK_CLDOUBLE:
-            cstr_cat(&cstr_buf, "<long double>", 0);
-            break;
-        case TOK_LINENUM:
-            cstr_cat(&cstr_buf, "<linenumber>", 0);
-            break;
+        case TOK_CFLOAT:   cp = "<float>";       goto copy_const;
+        case TOK_CDOUBLE:  cp = "<double>";      goto copy_const;
+        case TOK_CLDOUBLE: cp = "<long double>"; goto copy_const;
+        case TOK_LINENUM:  cp = "<linenumber>";  goto copy_const;
 
         /* above tokens have value, the ones below don't */
-        case TOK_LT:
-            v = '<';
-            goto addv;
-        case TOK_GT:
-            v = '>';
-            goto addv;
-        case TOK_DOTS:
-            return strcpy(p, "...");
-        case TOK_A_SHL:
-            return strcpy(p, "<<=");
-        case TOK_A_SAR:
-            return strcpy(p, ">>=");
-        case TOK_EOF:
-            return strcpy(p, "<eof>");
+        case TOK_DOTS:  cp = "..."; goto copy_const;
+        case TOK_A_SHL: cp = "<<="; goto copy_const;
+        case TOK_A_SAR: cp = ">>="; goto copy_const;
+        case TOK_EOF: cp = "<eof>";
+copy_const:
+            return strcpy(p, cp);
+        case TOK_LT: v = '<'; goto addv;
+        case TOK_GT: v = '>'; goto addv;
         default:
             if (v < TOK_IDENT) {
                 /* search in two bytes table */
