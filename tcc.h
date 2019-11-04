@@ -1460,11 +1460,6 @@ ST_FUNC uint8_t *skip_block_comment(uint8_t *p);
 ST_FUNC void minp(void);
 ST_INLN void inp(void);
 ST_FUNC int handle_eob(void);
-
-ST_INLN int isRealEOF();
-ST_INLN int flush_buffer();
-ST_INLN int peek();
-ST_INLN int peek_eob_handled();
 #endif
 
 /* ------------ xxx-link.c ------------ */
