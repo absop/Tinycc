@@ -2905,9 +2905,9 @@ redo:
             q = name;
 parse_name:
             for (;;) {
-                if (!((ch >= 'a' && ch <= 'z') ||
-                      (ch >= 'A' && ch <= 'Z') ||
-                      (ch >= '0' && ch <= '9') ||
+                if (!(('a' <= ch && ch <= 'z') ||
+                      ('A' <= ch && ch <= 'Z') ||
+                      ('0' <= ch && ch <= '9') ||
                       strchr("/.-_+=$:\\,~", ch)))
                     break;
                 if ((q - name) < name_size - 1)
