@@ -2914,17 +2914,15 @@ static int next_argstream(Sym **nested_list, TokenString *ws_str)
                         int c;
                         uint8_t *p = file->buf_ptr;
                         PEEKC(c, p);
-                        if (c == '*') {
-                            p = skip_block_comment(p);
+                        if (c == '*' || c == '/') {
+                            if (c == '*')
+                                p = skip_block_comment(p);
+                            else
+                                p = skip_aline_comment(p);
                             file->buf_ptr = p - 1;
+                            ch = ' ';
                         }
-                        else if (c == '/') {
-                            p = skip_aline_comment(p);
-                            file->buf_ptr = p - 1;
-                        }
-                        else
-                            break;
-                        ch = ' ';
+                        else break;
                     }
                     if (ch == '\n') file->line_num++;
                     if (!(ch == '\f' || ch == '\v' || ch == '\r'))
