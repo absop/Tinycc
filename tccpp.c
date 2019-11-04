@@ -574,11 +574,10 @@ ST_FUNC int handle_eob(void)
     if (bf->buf_ptr >= bf->buf_end) {
         if (bf->fd >= 0) {
 #if defined(PARSE_DEBUG)
-            len = 1;
+            len = read(bf->fd, bf->buffer, 1);
 #else
-            len = IO_BUF_SIZE;
+            len = read(bf->fd, bf->buffer, IO_BUF_SIZE);
 #endif
-            len = read(bf->fd, bf->buffer, len);
             if (len < 0) len = 0;
         }
         else
@@ -609,20 +608,12 @@ static int handle_stray_noerror(void)
 {
     while (ch == '\\') {
         inp();
+        if (ch == '\r') inp();
         if (ch == '\n') {
             file->line_num++;
             inp();
         }
-        else if (ch == '\r') {
-            inp();
-            if (ch != '\n') goto fail;
-            file->line_num++;
-            inp();
-        }
-        else {
-fail:
-            return 1;
-        }
+        else return 1;
     }
     return 0;
 }
@@ -650,32 +641,29 @@ static int handle_stray1(uint8_t *p)
             tcc_error("stray '\\' in program");
         *--file->buf_ptr = '\\';
     }
-    p = file->buf_ptr;
-    c = *p;
+    c = *file->buf_ptr;
     return c;
 }
 
 /* handle just the EOB case, but not stray */
-#define PEEKC_EOB(c, p)  \
-    {                      \
-        p++;                 \
-        c = *p;              \
-        if (c == '\\') {     \
+#define PEEKC_EOB(c, p)        \
+    {                          \
+        c = *++p;              \
+        if (c == CH_EOB) {     \
             file->buf_ptr = p; \
             c = handle_eob();  \
             p = file->buf_ptr; \
-        }                    \
+        }                      \
     }
 
 /* handle the complicated stray case */
-#define PEEKC(c, p)         \
-    {                         \
-        p++;                    \
-        c = *p;                 \
-        if (c == '\\') {        \
+#define PEEKC(c, p)               \
+    {                             \
+        c = *++p;                 \
+        if (c == '\\') {          \
             c = handle_stray1(p); \
             p = file->buf_ptr;    \
-        }                       \
+        }                         \
     }
 
 /* input with '\[\r]\n' handling. Note that this function cannot
@@ -692,35 +680,25 @@ static uint8_t *skip_aline_comment(uint8_t *p)
 {
     int c;
 
-    p++;
     for (;;) {
-        c = *p;
+        c = *++p;
 redo:
         if (c == '\n' || c == CH_EOF)
             break;
-        else if (c == '\\') {
+        else if (c == CH_EOB) {
             file->buf_ptr = p;
             c = handle_eob();
             p = file->buf_ptr;
             if (c == '\\') {
                 PEEKC_EOB(c, p);
+                if (c == '\r') PEEKC_EOB(c, p);
                 if (c == '\n') {
                     file->line_num++;
-                    PEEKC_EOB(c, p);
-                }
-                else if (c == '\r') {
-                    PEEKC_EOB(c, p);
-                    if (c == '\n') {
-                        file->line_num++;
-                        PEEKC_EOB(c, p);
-                    }
+                    continue;
                 }
             }
-            else
-                goto redo;
+            goto redo;
         }
-        else
-            p++;
     }
     return p;
 }
