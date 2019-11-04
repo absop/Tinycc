@@ -645,16 +645,21 @@ static int handle_stray1(uint8_t *p)
     return c;
 }
 
+#define HANDLE_EOB(c, p)    \
+    {                       \
+        file->buf_ptr = p;  \
+        c = handle_eob();   \
+        p = file->buf_ptr;  \
+    }
+
+
 /* handle just the EOB case, but not stray */
 #define PEEKC_EOB(c, p)        \
     {                          \
         c = *++p;              \
-        if (c == CH_EOB) {     \
-            file->buf_ptr = p; \
-            c = handle_eob();  \
-            p = file->buf_ptr; \
-        }                      \
-    }
+        if (c == CH_EOB)       \
+            HANDLE_EOB(c, p)   \
+        }
 
 /* handle the complicated stray case */
 #define PEEKC(c, p)               \
@@ -686,9 +691,7 @@ redo:
         if (c == '\n' || c == CH_EOF)
             break;
         else if (c == CH_EOB) {
-            file->buf_ptr = p;
-            c = handle_eob();
-            p = file->buf_ptr;
+            HANDLE_EOB(c, p)
             if (c == '\\') {
                 PEEKC_EOB(c, p);
                 if (c == '\r') PEEKC_EOB(c, p);
@@ -706,76 +709,28 @@ redo:
 /* C comments */
 ST_FUNC uint8_t *skip_block_comment(uint8_t *p)
 {
-    int c;
+    int c, t;
 
-    p++;
     for (;;) {
-        /* fast skip loop */
-        for (;;) {
-            c = *p;
-            if (c == '\n' || c == '*' || c == '\\') break;
-            p++;
-            c = *p;
-            if (c == '\n' || c == '*' || c == '\\') break;
-            p++;
-        }
-        /* now we can handle all the cases */
-        if (c == '\n') {
+        c = *++p;
+redo:
+        if (c == '\n')
             file->line_num++;
-            p++;
-        }
-        else if (c == '*') {
-            p++;
-            for (;;) {
-                c = *p;
-                if (c == '*')
-                    p++;
-                else if (c == '/')
-                    goto end_of_comment;
-                else if (c == '\\') {
-                    file->buf_ptr = p;
-                    c = handle_eob();
-                    p = file->buf_ptr;
-                    if (c == CH_EOF) tcc_error("unexpected end of file in comment");
-                    if (c == '\\') {
-                        /* skip '\[\r]\n', otherwise just skip the stray */
-                        while (c == '\\') {
-                            PEEKC_EOB(c, p);
-                            if (c == '\n') {
-                                file->line_num++;
-                                PEEKC_EOB(c, p);
-                            }
-                            else if (c == '\r') {
-                                PEEKC_EOB(c, p);
-                                if (c == '\n') {
-                                    file->line_num++;
-                                    PEEKC_EOB(c, p);
-                                }
-                            }
-                            else
-                                goto after_star;
-                        }
-                    }
+        else if (c == '*' || c == CH_EOB) {
+            t = c;
+            if (c == '*') c = *++p;
+            if (c == CH_EOB) {
+                HANDLE_EOB(c, p)
+                if (c == CH_EOF) {
+                    tcc_error("unexpected end of file in comment");
+                    return p;
                 }
-                else
-                    break;
+                if (c == '\\') continue;
             }
-after_star:;
-        }
-        else {
-            /* stray, eob or eof */
-            file->buf_ptr = p;
-            c = handle_eob();
-            p = file->buf_ptr;
-            if (c == CH_EOF)
-                tcc_error("unexpected end of file in comment");
-            else if (c == '\\')
-                p++;
+            if (t == '*' && c == '/') return ++p;
+            goto redo;
         }
     }
-end_of_comment:
-    p++;
-    return p;
 }
 
 ST_FUNC int set_idnum(int c, int val)
@@ -813,9 +768,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
         if (c == sep)
             break;
         else if (c == '\\') {
-            file->buf_ptr = p;
-            c = handle_eob();
-            p = file->buf_ptr;
+            HANDLE_EOB(c, p)
             if (c == CH_EOF) {
 unterminated_string:
                 /* XXX: indicate line number of start of string */
