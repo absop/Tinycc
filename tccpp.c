@@ -762,64 +762,37 @@ static inline int check_space(int t, int *spc)
 static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
 {
     int c;
-    p++;
+
     for (;;) {
-        c = *p;
-        if (c == sep)
-            break;
-        else if (c == '\\') {
+        c = *++p;
+redo:
+        if (c == sep) break;
+        else if (c == '\n') file->line_num++;
+        else if (c == CH_EOB) {
             HANDLE_EOB(c, p)
-            if (c == CH_EOF) {
-unterminated_string:
-                /* XXX: indicate line number of start of string */
-                tcc_error("missing terminating %c character", sep);
-            }
-            else if (c == '\\') {
-                /* escape : just skip \[\r]\n */
+            if (c == '\\') {
                 PEEKC_EOB(c, p);
-                if (c == '\n') {
+                if (c == '\r') PEEKC_EOB(c, p);
+                if (c == '\n')
                     file->line_num++;
-                    p++;
+                else if (c == CH_EOF) goto unterminated_string;
+                else if (str) {
+                    cstr_ccat(str, '\\');
+                    cstr_ccat(str, c);
                 }
-                else if (c == '\r') {
-                    PEEKC_EOB(c, p);
-                    if (c != '\n') expect("'\n' after '\r'");
-                    file->line_num++;
-                    p++;
-                }
-                else if (c == CH_EOF)
-                    goto unterminated_string;
-                else {
-                    if (str) {
-                        cstr_ccat(str, '\\');
-                        cstr_ccat(str, c);
-                    }
-                    p++;
-                }
+                continue;
             }
+            goto redo;
         }
-        else if (c == '\n') {
-            file->line_num++;
-            goto add_char;
+        else if (c == CH_EOF) {
+unterminated_string:
+            tcc_error("missing terminating %c character", sep);
+            break;
         }
-        else if (c == '\r') {
-            PEEKC_EOB(c, p);
-            if (c != '\n') {
-                if (str) cstr_ccat(str, '\r');
-            }
-            else {
-                file->line_num++;
-                goto add_char;
-            }
-        }
-        else {
-add_char:
-            if (str) cstr_ccat(str, c);
-            p++;
-        }
+        if (str) cstr_ccat(str, c);
     }
-    p++;
-    return p;
+
+    return ++p;
 }
 
 /* skip block of text until #else, #elif or #endif. skip also pairs of
