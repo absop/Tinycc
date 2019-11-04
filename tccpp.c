@@ -1924,19 +1924,8 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf,
                 case 'U':
                     p++;
                     n = 0;
-                    for (;;) {
-                        c = *p;
-                        if (c >= 'a' && c <= 'f')
-                            c = c - 'a' + 10;
-                        else if (c >= 'A' && c <= 'F')
-                            c = c - 'A' + 10;
-                        else if (isnum(c))
-                            c = c - '0';
-                        else
-                            break;
+                    for (; (c = vxdigit(*p)) != -1; p++)
                         n = n * 16 + c;
-                        p++;
-                    }
                     c = n;
                     goto add_char_nonext;
                 case 'a': c = '\a'; break;
@@ -2001,18 +1990,10 @@ invalid_escape:
                 /* adjust limit for second byte */
                 if (i == 1) {
                     switch (c) {
-                        case 0xE0:
-                            l = 0xA0;
-                            break;
-                        case 0xED:
-                            h = 0x9F;
-                            break;
-                        case 0xF0:
-                            l = 0x90;
-                            break;
-                        case 0xF4:
-                            h = 0x8F;
-                            break;
+                        case 0xE0: l = 0xA0; break;
+                        case 0xED: h = 0x9F; break;
+                        case 0xF0: l = 0x90; break;
+                        case 0xF4: h = 0x8F; break;
                     }
                 }
 
@@ -2125,14 +2106,6 @@ static void bn_zero(uint32_t *bn)
 {
     int i;
     for (i = 0; i < BN_SIZE; i++) bn[i] = 0;
-}
-
-static inline int vxdigit(int c)
-{
-    return ('0' <= c && c <= '9') ? c - '0' :
-           ('A' <= c && c <= 'F') ? c - 'A' + 10 :
-           ('a' <= c && c <= 'f') ? c - 'a' + 10 :
-           -1;
 }
 
 /* parse number in null terminated string 'p' and return it in the
@@ -3247,7 +3220,8 @@ static void macro_subst(TokenString *tok_str, Sym **nested_list,
                 macro_str = macro_ptr;
                 end_macro();
             }
-            if (tok_str->len) spc = is_space(t = tok_str->str[tok_str->lastlen]);
+            if (tok_str->len)
+                spc = is_space(t = tok_str->str[tok_str->lastlen]);
         }
         else {
             if (t == '\\' && !(parse_flags & PARSE_FLAG_ACCEPT_STRAYS))

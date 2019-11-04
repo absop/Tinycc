@@ -1274,6 +1274,13 @@ static inline int isoct(int c) {
 static inline int toup(int c) {
     return (c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c;
 }
+static inline int vxdigit(int c)
+{
+    return ('0' <= c && c <= '9') ? c - '0' :
+           ('A' <= c && c <= 'F') ? c - 'A' + 10 :
+           ('a' <= c && c <= 'f') ? c - 'a' + 10 :
+           -1;
+}
 
 /* ------------ tccgen.c ------------ */
 
