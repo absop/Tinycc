@@ -659,7 +659,7 @@ static int handle_stray1(uint8_t *p)
         c = *++p;              \
         if (c == CH_EOB)       \
             HANDLE_EOB(c, p)   \
-        }
+    }
 
 /* handle the complicated stray case */
 #define PEEKC(c, p)               \
