@@ -688,7 +688,7 @@ ST_FUNC void minp(void)
 }
 
 /* single line C++ comments */
-static uint8_t *parse_line_comment(uint8_t *p)
+static uint8_t *skip_aline_comment(uint8_t *p)
 {
     int c;
 
@@ -726,7 +726,7 @@ redo:
 }
 
 /* C comments */
-ST_FUNC uint8_t *parse_comment(uint8_t *p)
+ST_FUNC uint8_t *skip_block_comment(uint8_t *p)
 {
     int c;
 
@@ -943,9 +943,9 @@ redo_no_start:
                 minp();
                 p = file->buf_ptr;
                 if (ch == '*')
-                    p = parse_comment(p);
+                    p = skip_block_comment(p);
                 else if (ch == '/')
-                    p = parse_line_comment(p);
+                    p = skip_aline_comment(p);
                 break;
             case '#':
                 p++;
@@ -965,10 +965,10 @@ redo_no_start:
                     else if (tok == TOK_LINEFEED)
                         goto redo_start;
                     else if (parse_flags & PARSE_FLAG_ASM_FILE)
-                        p = parse_line_comment(p - 1);
+                        p = skip_aline_comment(p - 1);
                 }
                 else if (parse_flags & PARSE_FLAG_ASM_FILE)
-                    p = parse_line_comment(p - 1);
+                    p = skip_aline_comment(p - 1);
                 break;
 _default:
             default:
@@ -1877,7 +1877,7 @@ _line_num:
             tcc_warning("Ignoring unknown preprocessing directive #%s",
                         get_tok_str(tok, &tokc));
 ignore:
-            file->buf_ptr = parse_line_comment(file->buf_ptr - 1);
+            file->buf_ptr = skip_aline_comment(file->buf_ptr - 1);
             goto the_end;
     }
     /* ignore other preprocess commands or #! for C scripts */
@@ -2493,7 +2493,7 @@ maybe_newline:
                 }
                 else {
                     if (parse_flags & PARSE_FLAG_ASM_FILE) {
-                        p = parse_line_comment(p - 1);
+                        p = skip_aline_comment(p - 1);
                         goto redo_no_start;
                     }
                     else
@@ -2663,13 +2663,13 @@ str_const:
         case '/':
             PEEKC(c, p);
             if (c == '*') {
-                p = parse_comment(p);
+                p = skip_block_comment(p);
                 /* comments replaced by a blank */
                 tok = ' ';
                 goto keep_tok_flags;
             }
             else if (c == '/') {
-                p = parse_line_comment(p);
+                p = skip_aline_comment(p);
                 tok = ' ';
                 goto keep_tok_flags;
             }
@@ -2984,11 +2984,11 @@ static int next_argstream(Sym **nested_list, TokenString *ws_str)
                         uint8_t *p = file->buf_ptr;
                         PEEKC(c, p);
                         if (c == '*') {
-                            p = parse_comment(p);
+                            p = skip_block_comment(p);
                             file->buf_ptr = p - 1;
                         }
                         else if (c == '/') {
-                            p = parse_line_comment(p);
+                            p = skip_aline_comment(p);
                             file->buf_ptr = p - 1;
                         }
                         else
