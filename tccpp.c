@@ -2060,16 +2060,19 @@ static void parse_string(const char *s, int len)
     if (p != buf) tcc_free(p);
 
     if (sep == '\'') {
-        int char_size, i, n, c;
+        int nb_char, c = 0;
         /* XXX: make it portable */
-        if (!is_long)
-            tok = TOK_CCHAR, char_size = 1;
-        else
-            tok = TOK_LCHAR, char_size = sizeof(nwchar_t);
-        n = tokcstr.size / char_size - 1;
-        if (n < 1) tcc_error("empty character constant");
-        if (n > 1) tcc_warning("multi-character character constant");
-        for (c = i = 0; i < n; ++i) {
+        if (!is_long) {
+            tok = TOK_CCHAR;
+            nb_char = tokcstr.size - 1;
+        }
+        else {
+            tok = TOK_LCHAR;
+            nb_char = tokcstr.size / sizeof(nwchar_t) - 1;
+        }
+        if (nb_char < 1) tcc_error("empty character constant");
+        if (nb_char > 1) tcc_warning("multi-character character constant");
+        for (int i = 0; i < nb_char; ++i) {
             if (is_long)
                 c = ((nwchar_t *)tokcstr.data)[i];
             else
@@ -2119,8 +2122,7 @@ static void parse_number(const char *p)
 
     /* number */
     q = token_buf;
-    ch = *p++;
-    t = ch;
+    t = *p++;
     ch = *p++;
     *q++ = t;
     b = 10;
@@ -2228,7 +2230,7 @@ num_too_long:
                 *q++ = ch;
                 ch = *p++;
 float_frac_parse:
-                while (ch >= '0' && ch <= '9') {
+                while ('0' <= ch && ch <= '9') {
                     if (q >= token_buf + STRING_MAX_SIZE)
                         goto num_too_long;
                     *q++ = ch;
