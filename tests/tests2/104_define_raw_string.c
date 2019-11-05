@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#define XXX LR"(你好，世界！)"
+#define XXX LR"(你好，世界！)";
 #define YYY R"(
    /\\\\\\\\\          /\\\\\\\                /\\\         /\\\\\\\\\
   /\\\///////\\\      /\\\/////\\\            /\\\\\       /\\\///////\\\
@@ -13,14 +13,16 @@
         \///////////////      \///////                \///         \/////////
 )"
 
-const wchar_t *L_raw_string = XXX;
-const char *raw_string = R"(Hello World!)";
+const wchar_t *L_NiHao = XXX
+const char *Cn_Hello = R"(你好，世界！)";
+const char *En_Hello = R"(Hello World!)";
 const char *title_card_2048 = YYY;
 
 int main()
 {
-    wprintf(L"%s\n", L_raw_string);
-    printf("%s\n", raw_string);
+    wprintf(L"%s\n", L_NiHao);
+    printf("%s\n", Cn_Hello);
+    printf("%s\n", En_Hello);
     printf("%s\n", title_card_2048);
 
     int L = 1;
