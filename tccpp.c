@@ -659,7 +659,7 @@ static int handle_stray1(uint8_t *p)
         c = *++p;              \
         if (c == CH_EOB)       \
             HANDLE_EOB(c, p)   \
-    }
+        }
 
 /* handle the complicated stray case */
 #define PEEKC(c, p)               \
@@ -793,6 +793,42 @@ unterminated_string:
     }
 
     return ++p;
+}
+/* parse a string without interpreting escapes */
+static uint8_t *parse_row_string(uint8_t *p, CString *str)
+{
+    int c, t;
+
+    for (;;) {
+        c = *++p;
+redo:
+        if (c == '\r') PEEKC_EOB(c, p);
+        if (c == '\n') file->line_num++;
+        else if (c == ')' || c == CH_EOB) {
+            t = c;
+            if (c == ')') c = *++p;
+            if (c == CH_EOB) {
+                HANDLE_EOB(c, p)
+                if (c == '\\') {
+                    cstr_ccat(str, c);
+                    continue;
+                }
+                if (c == CH_EOF) {
+                    tcc_error("unterminated raw string");
+                    return p;
+                }
+            }
+            if (t == ')') {
+                if (c == '\"') {
+                    cstr_ccat(str, '\0');
+                    return ++p;
+                }
+                cstr_ccat(str, ')');
+            }
+            goto redo;
+        }
+        cstr_ccat(str, c);
+    }
 }
 
 /* skip block of text until #else, #elif or #endif. skip also pairs of
@@ -2414,7 +2450,8 @@ maybe_newline:
 
         case 'a' ... 'z':
         case 'A' ... 'K':
-        case 'M' ... 'Z':
+        case 'M' ... 'Q':
+        case 'S' ... 'Z':
         case '_':
 parse_ident_fast:
             p1 = p;
@@ -2434,7 +2471,6 @@ parse_ident_fast:
                 cstr_cat(&tokcstr, (char *)p1, len);
                 p--;
                 PEEKC(c, p);
-parse_ident_slow:
                 while (isidnum_table[c - CH_EOF] & (IS_ID | IS_NUM)) {
                     cstr_ccat(&tokcstr, c);
                     PEEKC(c, p);
@@ -2443,24 +2479,45 @@ parse_ident_slow:
             }
             tok = ts->tok;
             break;
+
         case 'L':
             t = p[1];
-            if (t != '\\' && t != '\'' && t != '\"') {
-                /* fast case */
+            if (t != '\\' && t != '\'' && t != '\"' && t != 'R')
+                goto parse_ident_fast;
+
+            PEEKC(c, p);
+            if (c == '\'' || c == '\"') {
+                is_long = 1;
+                goto str_const;
+            }
+            else if (c != 'R') {
+                *--p = c = 'L';
                 goto parse_ident_fast;
             }
-            else {
-                PEEKC(c, p);
-                if (c == '\'' || c == '\"') {
-                    is_long = 1;
-                    goto str_const;
-                }
-                else {
-                    cstr_reset(&tokcstr);
-                    cstr_ccat(&tokcstr, 'L');
-                    goto parse_ident_slow;
-                }
+            c = 'L';
+
+        case 'R':
+            t = c;
+            PEEKC(c, p);
+            if (c != '\"') {
+                *--p = c = 'R';
+                if (t == 'L')
+                    *--p = c = 'L';
+                goto parse_ident_fast;
             }
+            PEEKC(c, p);
+            if (c == '(') {
+                cstr_reset(&tokcstr);
+                p = parse_row_string(p, &tokcstr);
+                tokc.str.size = tokcstr.size;
+                tokc.str.data = tokcstr.data;
+                if (t == 'L')
+                    tok = TOK_LSTR;
+                else tok = TOK_STR;
+            }
+            else
+                tcc_error("stray 'R' in program");
+
             break;
 
         case '0' ... '9':
@@ -2551,13 +2608,13 @@ str_const:
                 p++;
                 tok = TOK_DEC;
             }
-            else if (c == '=') {
-                p++;
-                tok = TOK_A_SUB;
-            }
             else if (c == '>') {
                 p++;
                 tok = TOK_ARROW;
+            }
+            else if (c == '=') {
+                p++;
+                tok = TOK_A_SUB;
             }
             else
                 tok = '-';
