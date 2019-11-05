@@ -795,7 +795,7 @@ unterminated_string:
     return ++p;
 }
 /* parse a string without interpreting escapes */
-static uint8_t *parse_row_string(uint8_t *p, CString *str)
+static uint8_t *parse_raw_string(uint8_t *p, CString *str)
 {
     int c, t;
 
@@ -2508,12 +2508,10 @@ parse_ident_fast:
             PEEKC(c, p);
             if (c == '(') {
                 cstr_reset(&tokcstr);
-                p = parse_row_string(p, &tokcstr);
+                p = parse_raw_string(p, &tokcstr);
                 tokc.str.size = tokcstr.size;
                 tokc.str.data = tokcstr.data;
-                if (t == 'L')
-                    tok = TOK_LSTR;
-                else tok = TOK_STR;
+                tok = t != 'L' ? TOK_STR : TOK_LSTR;
             }
             else
                 tcc_error("stray 'R' in program");
@@ -3200,7 +3198,7 @@ no_subst:
 }
 
 /* return next token with macro substitution */
-ST_FUNC void next(void)
+static void pp_next(void)
 {
 redo:
     if (parse_flags & PARSE_FLAG_SPACES)
@@ -3234,9 +3232,16 @@ redo:
     }
     /* convert preprocessor tokens into C tokens */
     if (tok == TOK_PPNUM) {
-        if (parse_flags & PARSE_FLAG_TOK_NUM) parse_number((char *)tokc.str.data);
+        if (parse_flags & PARSE_FLAG_TOK_NUM)
+            parse_number((char *)tokc.str.data);
     }
-    else if (tok == TOK_PPSTR) {
+}
+
+/* return next token with macro substitution */
+ST_FUNC void next(void)
+{
+    pp_next();
+    if (tok == TOK_PPSTR) {
         if (parse_flags & PARSE_FLAG_TOK_STR)
             parse_string((char *)tokc.str.data, tokc.str.size - 1);
     }
@@ -3520,7 +3525,7 @@ ST_FUNC int tcc_preprocess(TCCState *s1)
     pp_line(s1, file, 0);
     for (;;) {
         iptr = s1->include_stack_ptr;
-        next();
+        pp_next();
         if (tok == TOK_EOF) break;
 
         level = s1->include_stack_ptr - iptr;
@@ -3548,8 +3553,18 @@ ST_FUNC int tcc_preprocess(TCCState *s1)
             white[spcs++] = ' ';
 
         white[spcs] = 0, fputs(white, s1->ppfp), spcs = 0;
-        fputs(p = get_tok_str(tok, &tokc), s1->ppfp);
-        token_seen = pp_check_he0xE(tok, p);
+        if (tok == TOK_STR || tok == TOK_LSTR) {
+            if (tok == TOK_LSTR)
+                fputc('L', s1->ppfp);
+            fputs("R\"(", s1->ppfp);
+            fputs(tokc.str.data, s1->ppfp);
+            fputs(")\"", s1->ppfp);
+            token_seen = tok;
+        }
+        else {
+            fputs(p = get_tok_str(tok, &tokc), s1->ppfp);
+            token_seen = pp_check_he0xE(tok, p);
+        }
     }
     return 0;
 }
