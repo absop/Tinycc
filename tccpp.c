@@ -711,24 +711,25 @@ ST_FUNC uint8_t *skip_block_comment(uint8_t *p)
 {
     int c, t;
 
+    // Another hack may be: `*p = 'x';`
+    if (*++p == '\n') file->line_num++;
     for (;;) {
         c = *++p;
-redo:
-        if (c == '\n')
-            file->line_num++;
-        else if (c == '*' || c == CH_EOB) {
-            t = c;
-            if (c == '*') c = *++p;
-            if (c == CH_EOB) {
-                HANDLE_EOB(c, p)
-                if (c == CH_EOF) {
+        if (c == '\n') file->line_num++;
+        /****** comments maybe like this ******/
+        else if (c == '/' && *(p - 1) == '*')
+            return ++p;
+        else if (c == CH_EOB) {
+            t = *(p - 1);
+            HANDLE_EOB(c, p)
+            if (c != '\\') {
+                if (c != CH_EOF)
+                    *--p = t;
+                else {
                     tcc_error("unexpected end of file in comment");
                     return p;
                 }
-                if (c == '\\') continue;
             }
-            if (t == '*' && c == '/') return ++p;
-            goto redo;
         }
     }
 }
